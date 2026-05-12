@@ -205,7 +205,13 @@ function StateDiagram({ state }) {
   ];
 
   return (
-    <svg width="100%" viewBox="0 0 700 520" style={{ overflow: "visible" }}>
+    <svg
+      width="100%"
+      height="100%"
+      viewBox="0 0 700 520"
+      preserveAspectRatio="xMidYMid meet"
+      style={{ overflow: "visible", display: "block" }}
+    >
       <defs>
         <marker
           id="sda"
@@ -815,7 +821,8 @@ export default function App() {
       </div>
 
       {page === "dash" && (
-        <div style={{ display: "grid", gridTemplateColumns: "280px minmax(0, 1fr) 460px", gap: 10, alignItems: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "280px minmax(0, 1fr) 460px", gap: 10, alignItems: "stretch" }}>
+          {/* ────────── LEFT COLUMN: Controls only ────────── */}
           <div className="sp" style={{ display: "flex", flexDirection: "column", gap: 7 }}>
             <div className="sec">Connection</div>
             <select className="inp" style={{ marginBottom: 3 }}>
@@ -883,20 +890,9 @@ export default function App() {
             <div className="sec">Data</div>
             <button className="btn" style={{ width: "100%", marginBottom: 5 }} onClick={() => { dataRef.current = []; setData([]); addLog("Graph buffer cleared.", "info"); }}>Clear graphs</button>
             <button className="btn" style={{ width: "100%" }} onClick={() => setLogs([])}>Clear console</button>
-
-            <hr className="div" />
-            <div className="sec">Motor monitor</div>
-            <div style={{ display: "flex", justifyContent: "center", marginTop: -4 }}>
-              <MotorGauge throttle={throttle} state={state} rpm={rpm} />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: 6 }}>
-              <Card label="Current" value={curVal != null ? `${curVal.toFixed(2)} A` : "──"} color="#c53030" />
-              <Card label="Thrust" value={thrustVal != null ? `${thrustVal.toFixed(1)} g` : "──"} color="#248c24" />
-              <Card label="T/I ratio" value={tiRatio != null ? `${tiRatio} g/A` : "──"} color={THEME.text} />
-              <Card label="Pulse" value={`${us} µs`} color={meta.accent} />
-            </div>
           </div>
 
+          {/* ────────── CENTER COLUMN: Telemetry + Motor monitor at bottom ────────── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
               <Card label="Live current" value={curVal != null ? `${curVal.toFixed(2)} A` : "──"} color="#c53030" />
@@ -992,17 +988,34 @@ export default function App() {
                 <button className="btn btn-p" style={{ flexShrink: 0 }} onClick={sendCmd}>Send</button>
               </div>
             </div>
+
+            {/* ────────── MOTOR MONITOR — moved to center bottom ────────── */}
+            <div className="sp">
+              <div className="sec">Motor monitor</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+                <div style={{ flexShrink: 0 }}>
+                  <MotorGauge throttle={throttle} state={state} rpm={rpm} />
+                </div>
+                <div style={{ flex: 1, minWidth: 260, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
+                  <Card label="Current" value={curVal != null ? `${curVal.toFixed(2)} A` : "──"} color="#c53030" />
+                  <Card label="Thrust" value={thrustVal != null ? `${thrustVal.toFixed(1)} g` : "──"} color="#248c24" />
+                  <Card label="T/I ratio" value={tiRatio != null ? `${tiRatio} g/A` : "──"} color={THEME.text} />
+                  <Card label="Pulse" value={`${us} µs`} color={meta.accent} />
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: 760 }}>
-            <div className="sp" style={{ minHeight: 760, height: "100%" }}>
+          {/* ────────── RIGHT COLUMN: State machine, fills full height ────────── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="sp" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
               <div className="sec">State machine</div>
               {lastTrans && (
                 <div style={{ background: meta.bg, border: `1px solid ${meta.border}`, color: meta.text, borderRadius: 10, padding: "5px 10px", fontSize: 10, marginBottom: 8, lineHeight: 1.5 }}>
                   ← {lastTrans.reason}
                 </div>
               )}
-              <div style={{ transform: "scale(1.08)", transformOrigin: "top center", marginTop: 20, marginBottom: 40 }}>
+              <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 0" }}>
                 <StateDiagram state={state} />
               </div>
             </div>
