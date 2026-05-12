@@ -264,7 +264,7 @@ function StateDiagram({ state }) {
 
       {/* ─── FAILSAFE → ARMING (smooth curve up the right side) ─── */}
       <path d="M 605 425 C 660 425 660 230 605 230" {...arrowSoft} />
-      <text x="667" y="328" {...label} textAnchor="middle">
+      <text x="685" y="328" {...label} textAnchor="middle">
         ON re-arm
       </text>
 
