@@ -121,7 +121,7 @@ const simCurrent = (pct) => {
 const simThrust = (pct, cal) => {
   if (!cal || pct <= 0) return null;
   const n = Math.min(pct, 70) / 70;
-  return +(Math.max(0, 502 * Math.pow(n, 2.1) + rand() * 11)).toFixed(2);
+  return +Math.max(0, 502 * Math.pow(n, 2.1) + rand() * 11).toFixed(2);
 };
 const simRpm = (pct) => Math.round((Math.min(pct, 70) / 70) * 13000);
 const fmtTime = (ms) => {
@@ -157,7 +157,8 @@ const HINTS = {
   stop: {
     [S.DISC]: "Not connected",
     [S.ZERO]: "Motor not armed",
-    [S.IDLE]: "Firmware quirk: STOP when disarmed silently turns off logging instead of stopping motor",
+    [S.IDLE]:
+      "Firmware quirk: STOP when disarmed silently turns off logging instead of stopping motor",
     [S.ARM]: "Arming in progress — all commands blocked for 2 s",
     [S.READY]: "Already at MIN throttle — use OFF to disarm or SPEED to run",
     [S.FAIL]: "Motor already killed",
@@ -171,7 +172,7 @@ const HINTS = {
   },
 };
 const getHint = (state, key, isTared) =>
-  getEnabled(state, isTared)[key] ? null : HINTS[key]?.[state] ?? null;
+  getEnabled(state, isTared)[key] ? null : (HINTS[key]?.[state] ?? null);
 
 function StateDiagram({ state }) {
   const arrow = {
@@ -194,21 +195,22 @@ function StateDiagram({ state }) {
     fontWeight: 600,
   };
 
+  // Layout: main flow vertical on left, side states (ARMING, FAILSAFE) on right
   const nodes = [
-    { id: S.DISC, cx: 230, cy: 54, w: 190, h: 42 },
-    { id: S.ZERO, cx: 230, cy: 142, w: 190, h: 42 },
-    { id: S.IDLE, cx: 230, cy: 238, w: 190, h: 42 },
-    { id: S.ARM, cx: 530, cy: 238, w: 170, h: 42 },
-    { id: S.READY, cx: 230, cy: 348, w: 190, h: 42 },
-    { id: S.RUN, cx: 230, cy: 456, w: 190, h: 42 },
-    { id: S.FAIL, cx: 530, cy: 456, w: 170, h: 42 },
+    { id: S.DISC, cx: 260, cy: 50, w: 180, h: 42 },
+    { id: S.ZERO, cx: 260, cy: 140, w: 180, h: 42 },
+    { id: S.IDLE, cx: 260, cy: 230, w: 180, h: 42 },
+    { id: S.ARM, cx: 525, cy: 230, w: 160, h: 42 },
+    { id: S.READY, cx: 260, cy: 325, w: 180, h: 42 },
+    { id: S.RUN, cx: 260, cy: 425, w: 180, h: 42 },
+    { id: S.FAIL, cx: 525, cy: 425, w: 160, h: 42 },
   ];
 
   return (
     <svg
       width="100%"
       height="100%"
-      viewBox="0 0 700 520"
+      viewBox="0 0 700 500"
       preserveAspectRatio="xMidYMid meet"
       style={{ overflow: "visible", display: "block" }}
     >
@@ -226,35 +228,69 @@ function StateDiagram({ state }) {
         </marker>
       </defs>
 
-      <line x1="230" y1="75" x2="230" y2="121" {...arrow} />
-      <text x="244" y="103" {...label}>Connect</text>
+      {/* ─── Forward flow (vertical main spine) ─── */}
+      <line x1="260" y1="71" x2="260" y2="119" {...arrow} />
+      <text x="272" y="100" {...label}>
+        Connect
+      </text>
 
-      <line x1="230" y1="163" x2="230" y2="217" {...arrow} />
-      <text x="244" y="193" {...label}>Cal done</text>
+      <line x1="260" y1="161" x2="260" y2="209" {...arrow} />
+      <text x="272" y="190" {...label}>
+        Cal done
+      </text>
 
-      <path d="M 325 228 L 445 228" {...arrow} />
-      <text x="385" y="216" {...label} textAnchor="middle">ON</text>
+      <line x1="260" y1="346" x2="260" y2="404" {...arrow} />
+      <text x="272" y="380" {...label}>
+        SPEED &gt; 0
+      </text>
 
-      <path d="M 445 250 L 365 250 Q 328 250 328 287 L 328 348 L 325 348" {...arrow} />
-      <text x="385" y="273" {...label} textAnchor="middle">Armed after 2 s</text>
+      {/* ─── IDLE → ARMING (rightward) ─── */}
+      <line x1="350" y1="230" x2="445" y2="230" {...arrow} />
+      <text x="397" y="221" {...label} textAnchor="middle">
+        ON
+      </text>
 
-      <line x1="230" y1="369" x2="230" y2="435" {...arrow} />
-      <text x="244" y="405" {...label}>SPEED &gt; 0</text>
+      {/* ─── ARMING → READY (smooth curve down-left) ─── */}
+      <path d="M 525 251 C 525 298 425 325 350 325" {...arrow} />
+      <text x="453" y="283" {...label} textAnchor="middle">
+        Armed after 2 s
+      </text>
 
-      <path d="M 135 456 C 82 456 82 348 135 348" {...arrowSoft} />
-      <text x="73" y="405" {...label} textAnchor="end">STOP / 0</text>
+      {/* ─── RUNNING → FAILSAFE (rightward) ─── */}
+      <line x1="350" y1="425" x2="445" y2="425" {...arrow} />
+      <text x="397" y="416" {...label} textAnchor="middle">
+        30 s timeout
+      </text>
 
-      <path d="M 135 348 C 35 348 35 238 135 238" {...arrowSoft} />
-      <text x="44" y="292" {...label} textAnchor="end">OFF</text>
+      {/* ─── FAILSAFE → ARMING (smooth curve up the right side) ─── */}
+      <path d="M 605 425 C 660 425 660 230 605 230" {...arrowSoft} />
+      <text x="667" y="328" {...label} textAnchor="middle">
+        ON re-arm
+      </text>
 
-      <path d="M 135 456 C 12 456 12 238 135 238" {...arrowSoft} />
-      <text x="20" y="372" {...label}>OFF</text>
+      {/* ─── Back-transitions, 3 concentric curves on the left ─── */}
+      {/* Innermost: RUNNING → READY (STOP / 0) */}
+      <path d="M 170 425 C 120 425 120 325 170 325" {...arrowSoft} />
+      <text x="120" y="378" {...label} textAnchor="end">
+        <tspan x="120" dy="0">
+          STOP
+        </tspan>
+        <tspan x="120" dy="13">
+          / 0
+        </tspan>
+      </text>
 
-      <line x1="325" y1="456" x2="445" y2="456" {...arrow} />
-      <text x="385" y="443" {...label} textAnchor="middle">30 s timeout</text>
+      {/* Middle: READY → IDLE (OFF) */}
+      <path d="M 170 325 C 80 325 80 230 170 230" {...arrowSoft} />
+      <text x="100" y="292" {...label} textAnchor="end">
+        OFF
+      </text>
 
-      <path d="M 530 435 C 530 352 435 304 325 248" {...arrowSoft} />
-      <text x="486" y="343" {...label} textAnchor="middle">ON re-arm</text>
+      {/* Outermost: RUNNING → IDLE (OFF) */}
+      <path d="M 170 425 C 40 425 40 230 170 230" {...arrowSoft} />
+      <text x="60" y="330" {...label} textAnchor="end">
+        OFF
+      </text>
 
       {nodes.map((n) => {
         const active = n.id === state;
@@ -314,7 +350,10 @@ function MotorGauge({ throttle, state, rpm }) {
   const CY = 82;
   const R = 62;
   const toR = (d) => (d * Math.PI) / 180;
-  const pt = (d) => ({ x: CX + R * Math.cos(toR(d)), y: CY + R * Math.sin(toR(d)) });
+  const pt = (d) => ({
+    x: CX + R * Math.cos(toR(d)),
+    y: CY + R * Math.sin(toR(d)),
+  });
   const START = -225;
   const SWEEP = 270;
   const arc = (a1, a2) => {
@@ -330,35 +369,97 @@ function MotorGauge({ throttle, state, rpm }) {
 
   return (
     <svg width="160" height="168" viewBox="0 0 160 168">
-      <path d={arc(START, START + SWEEP)} fill="none" stroke="#dbe5f0" strokeWidth="10" strokeLinecap="round" />
-      {pct > 0 && <path d={arc(START, endAngle)} fill="none" stroke={col} strokeWidth="10" strokeLinecap="round" />}
+      <path
+        d={arc(START, START + SWEEP)}
+        fill="none"
+        stroke="#dbe5f0"
+        strokeWidth="10"
+        strokeLinecap="round"
+      />
+      {pct > 0 && (
+        <path
+          d={arc(START, endAngle)}
+          fill="none"
+          stroke={col}
+          strokeWidth="10"
+          strokeLinecap="round"
+        />
+      )}
       {pct > 0 && <circle cx={dotPt.x} cy={dotPt.y} r="5" fill={col} />}
       <text
         x="80"
         y="70"
         textAnchor="middle"
         dominantBaseline="central"
-        style={{ fontSize: 24, fontWeight: 800, fontFamily: "monospace", fill: THEME.text }}
+        style={{
+          fontSize: 24,
+          fontWeight: 800,
+          fontFamily: "monospace",
+          fill: THEME.text,
+        }}
       >
         {pct}%
       </text>
-      <text x="80" y="90" textAnchor="middle" style={{ fontSize: 9, fontFamily: "monospace", fill: THEME.muted, letterSpacing: 1 }}>
+      <text
+        x="80"
+        y="90"
+        textAnchor="middle"
+        style={{
+          fontSize: 9,
+          fontFamily: "monospace",
+          fill: THEME.muted,
+          letterSpacing: 1,
+        }}
+      >
         THROTTLE
       </text>
-      <text x="80" y="107" textAnchor="middle" style={{ fontSize: 10, fontFamily: "monospace", fill: col }}>
+      <text
+        x="80"
+        y="107"
+        textAnchor="middle"
+        style={{ fontSize: 10, fontFamily: "monospace", fill: col }}
+      >
         {us} µs
       </text>
       {state === S.RUN ? (
-        <text x="80" y="123" textAnchor="middle" style={{ fontSize: 10, fontFamily: "monospace", fill: col }}>
+        <text
+          x="80"
+          y="123"
+          textAnchor="middle"
+          style={{ fontSize: 10, fontFamily: "monospace", fill: col }}
+        >
           ~{rpm.toLocaleString()} RPM
         </text>
       ) : (
-        <text x="80" y="123" textAnchor="middle" style={{ fontSize: 10, fontFamily: "monospace", fill: THEME.faint }}>
-          {state === S.ARM ? "ARMING…" : state === S.READY ? "ARMED IDLE" : "IDLE"}
+        <text
+          x="80"
+          y="123"
+          textAnchor="middle"
+          style={{ fontSize: 10, fontFamily: "monospace", fill: THEME.faint }}
+        >
+          {state === S.ARM
+            ? "ARMING…"
+            : state === S.READY
+              ? "ARMED IDLE"
+              : "IDLE"}
         </text>
       )}
-      <text x="13" y="148" textAnchor="middle" style={{ fontSize: 7, fontFamily: "monospace", fill: THEME.muted }}>0</text>
-      <text x="148" y="148" textAnchor="middle" style={{ fontSize: 7, fontFamily: "monospace", fill: THEME.muted }}>70%</text>
+      <text
+        x="13"
+        y="148"
+        textAnchor="middle"
+        style={{ fontSize: 7, fontFamily: "monospace", fill: THEME.muted }}
+      >
+        0
+      </text>
+      <text
+        x="148"
+        y="148"
+        textAnchor="middle"
+        style={{ fontSize: 7, fontFamily: "monospace", fill: THEME.muted }}
+      >
+        70%
+      </text>
     </svg>
   );
 }
@@ -367,8 +468,21 @@ function Card({ label, value, color, sub }) {
   return (
     <div className="light-card">
       <div className="lbl">{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 800, fontFamily: "monospace", color: color || THEME.text }}>{value}</div>
-      {sub && <div style={{ fontSize: 9, color: THEME.muted, marginTop: 2 }}>{sub}</div>}
+      <div
+        style={{
+          fontSize: 15,
+          fontWeight: 800,
+          fontFamily: "monospace",
+          color: color || THEME.text,
+        }}
+      >
+        {value}
+      </div>
+      {sub && (
+        <div style={{ fontSize: 9, color: THEME.muted, marginTop: 2 }}>
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
@@ -425,7 +539,7 @@ export default function App() {
       setLastTrans({ to: ns, reason });
       addLog(`→ STATE: ${SM[ns].label}  (${reason})`, "state");
     },
-    [addLog]
+    [addLog],
   );
 
   const finalizeRun = useCallback(
@@ -435,13 +549,21 @@ export default function App() {
       const dur = (Date.now() - ar.startMs) / 1000;
       setRuns((prev) => [
         ...prev,
-        { ...ar, endTime: new Date().toLocaleTimeString(), endReason: reason, duration: dur },
+        {
+          ...ar,
+          endTime: new Date().toLocaleTimeString(),
+          endReason: reason,
+          duration: dur,
+        },
       ]);
       arRef.current = null;
       setActiveRun(null);
-      addLog(`Run #${ar.id} ended: ${reason}  (${dur.toFixed(1)} s, ${ar.samples} samples)`, "run");
+      addLog(
+        `Run #${ar.id} ended: ${reason}  (${dur.toFixed(1)} s, ${ar.samples} samples)`,
+        "run",
+      );
     },
-    [addLog]
+    [addLog],
   );
 
   useEffect(() => {
@@ -490,7 +612,11 @@ export default function App() {
         armT0 = null;
       }
 
-      if ((st === S.READY || st === S.RUN) && cmdT0.current && now - cmdT0.current >= FAILSAFE_MS) {
+      if (
+        (st === S.READY || st === S.RUN) &&
+        cmdT0.current &&
+        now - cmdT0.current >= FAILSAFE_MS
+      ) {
         thrRef.current = 0;
         setThrottle(0);
         setRpm(0);
@@ -502,7 +628,10 @@ export default function App() {
         addLog("Motor disabled due to command timeout.", "err");
       }
 
-      if ((st === S.IDLE || st === S.READY || st === S.RUN) && now - lastLog.current >= LOG_MS) {
+      if (
+        (st === S.IDLE || st === S.READY || st === S.RUN) &&
+        now - lastLog.current >= LOG_MS
+      ) {
         lastLog.current = now;
         const elapsed = connT0.current ? (now - connT0.current) / 1000 : 0;
         const cur = simCurrent(st === S.RUN ? thr : 0);
@@ -630,9 +759,15 @@ export default function App() {
           transition(S.READY, "STOP — throttle MIN, motor still armed");
           addLog("OK Throttle = 0%  pulse = 1000 µs", "ok");
         } else if (st === S.IDLE) {
-          addLog("⚠ FIRMWARE QUIRK: STOP when motor is disarmed → logging turned OFF", "err");
+          addLog(
+            "⚠ FIRMWARE QUIRK: STOP when motor is disarmed → logging turned OFF",
+            "err",
+          );
         } else if (st === S.READY) {
-          addLog("Motor already at MIN throttle. Use OFF to disarm, or SPEED to run.", "info");
+          addLog(
+            "Motor already at MIN throttle. Use OFF to disarm, or SPEED to run.",
+            "info",
+          );
         } else {
           addLog("ERR: STOP not valid in current state.", "err");
         }
@@ -717,10 +852,19 @@ export default function App() {
       }
 
       if (up === "STATUS") {
-        const us = 1000 + Math.round((Math.min(thrRef.current, 70) / 70) * 1000);
-        const fs = cmdT0.current ? ((FAILSAFE_MS - (Date.now() - cmdT0.current)) / 1000).toFixed(1) : "N/A";
-        addLog(`STATE=${SM[stRef.current].label}  THROTTLE=${thrRef.current}%  PULSE=${us} µs`, "info");
-        addLog(`TARED=${tarRef.current}  CALIBRATED=${calRef.current}  FAILSAFE_IN=${fs} s`, "info");
+        const us =
+          1000 + Math.round((Math.min(thrRef.current, 70) / 70) * 1000);
+        const fs = cmdT0.current
+          ? ((FAILSAFE_MS - (Date.now() - cmdT0.current)) / 1000).toFixed(1)
+          : "N/A";
+        addLog(
+          `STATE=${SM[stRef.current].label}  THROTTLE=${thrRef.current}%  PULSE=${us} µs`,
+          "info",
+        );
+        addLog(
+          `TARED=${tarRef.current}  CALIBRATED=${calRef.current}  FAILSAFE_IN=${fs} s`,
+          "info",
+        );
         return;
       }
 
@@ -733,7 +877,7 @@ export default function App() {
 
       addLog(`Unknown command: '${raw.trim()}'. Type HELP.`, "err");
     },
-    [addLog, transition, finalizeRun]
+    [addLog, transition, finalizeRun],
   );
 
   const sendCmd = () => {
@@ -748,7 +892,10 @@ export default function App() {
   const isConn = state !== S.DISC;
   const curVal = latestRow?.current ?? null;
   const thrustVal = latestRow?.thrust > 0.1 ? latestRow.thrust : null;
-  const tiRatio = curVal && thrustVal && curVal > 0.5 ? (thrustVal / curVal).toFixed(2) : null;
+  const tiRatio =
+    curVal && thrustVal && curVal > 0.5
+      ? (thrustVal / curVal).toFixed(2)
+      : null;
   const us = 1000 + Math.round((Math.min(throttle, 70) / 70) * 1000);
   const fsWarn = failsafeMs !== null && failsafeMs < 8000;
 
@@ -760,10 +907,18 @@ export default function App() {
       err: "#c53030",
       run: "#7c3aed",
       info: "#64748b",
-    }[type] || "#64748b");
+    })[type] || "#64748b";
 
   return (
-    <div style={{ fontFamily: "monospace", background: THEME.page, minHeight: "100vh", padding: "12px 10px 28px", color: THEME.text }}>
+    <div
+      style={{
+        fontFamily: "monospace",
+        background: THEME.page,
+        minHeight: "100vh",
+        padding: "12px 10px 28px",
+        color: THEME.text,
+      }}
+    >
       <style>{`
         *{box-sizing:border-box}
         ::-webkit-scrollbar{width:7px;height:7px}
@@ -802,31 +957,80 @@ export default function App() {
         .pulse{animation:pulse 1.4s ease-in-out infinite}
       `}</style>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 13, fontWeight: 900, letterSpacing: 1.5 }}>ESP32 MOTOR TEST STAND</span>
-        <span style={{ fontSize: 9, color: THEME.faint }}>LIGHT THEME SIMULATOR</span>
-        <span className={`badge ${state === S.FAIL ? "blink" : state === S.RUN ? "pulse" : ""}`} style={{ background: meta.bg, border: `1px solid ${meta.border}`, color: meta.text }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 900, letterSpacing: 1.5 }}>
+          ESP32 MOTOR TEST STAND
+        </span>
+        <span style={{ fontSize: 9, color: THEME.faint }}>
+          LIGHT THEME SIMULATOR
+        </span>
+        <span
+          className={`badge ${state === S.FAIL ? "blink" : state === S.RUN ? "pulse" : ""}`}
+          style={{
+            background: meta.bg,
+            border: `1px solid ${meta.border}`,
+            color: meta.text,
+          }}
+        >
           ● {meta.label}
         </span>
         <span style={{ fontSize: 10, color: THEME.muted }}>{meta.desc}</span>
         {state === S.ARM && (
-          <span className="blink" style={{ fontSize: 10, color: "#8a5a00", background: "#fff7df", border: "1px solid #d89b12", borderRadius: 9, padding: "3px 8px" }}>
+          <span
+            className="blink"
+            style={{
+              fontSize: 10,
+              color: "#8a5a00",
+              background: "#fff7df",
+              border: "1px solid #d89b12",
+              borderRadius: 9,
+              padding: "3px 8px",
+            }}
+          >
             ⚠ COMMANDS BLOCKED
           </span>
         )}
         <div style={{ marginLeft: "auto" }}>
-          <button className={`tab${page === "dash" ? " active" : ""}`} onClick={() => setPage("dash")}>Dashboard</button>
-          <button className={`tab${page === "summary" ? " active" : ""}`} onClick={() => setPage("summary")}>Run summary</button>
+          <button
+            className={`tab${page === "dash" ? " active" : ""}`}
+            onClick={() => setPage("dash")}
+          >
+            Dashboard
+          </button>
+          <button
+            className={`tab${page === "summary" ? " active" : ""}`}
+            onClick={() => setPage("summary")}
+          >
+            Run summary
+          </button>
         </div>
       </div>
 
       {page === "dash" && (
-        <div style={{ display: "grid", gridTemplateColumns: "280px minmax(0, 1fr) 460px", gap: 10, alignItems: "stretch" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "280px minmax(0, 1fr) 460px",
+            gap: 10,
+            alignItems: "stretch",
+          }}
+        >
           {/* ────────── LEFT COLUMN: Controls only ────────── */}
-          <div className="sp" style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          <div
+            className="sp"
+            style={{ display: "flex", flexDirection: "column", gap: 7 }}
+          >
             <div className="sec">Connection</div>
             <select className="inp" style={{ marginBottom: 3 }}>
-              <option>COM3  (ESP32)</option>
+              <option>COM3 (ESP32)</option>
               <option>COM4</option>
               <option>/dev/ttyUSB0</option>
             </select>
@@ -834,132 +1038,419 @@ export default function App() {
               <option>115200 baud</option>
               <option>9600 baud</option>
             </select>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-              <button className="btn btn-s" onClick={() => handleCmd("CONNECT")} disabled={!en.connect}>Connect</button>
-              <button className="btn btn-d" onClick={() => handleCmd("DISCONNECT")} disabled={!en.disconnect}>Disconnect</button>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 6,
+              }}
+            >
+              <button
+                className="btn btn-s"
+                onClick={() => handleCmd("CONNECT")}
+                disabled={!en.connect}
+              >
+                Connect
+              </button>
+              <button
+                className="btn btn-d"
+                onClick={() => handleCmd("DISCONNECT")}
+                disabled={!en.disconnect}
+              >
+                Disconnect
+              </button>
             </div>
-            <div style={{ fontSize: 9, color: isConn ? "#21721f" : THEME.faint }}>
+            <div
+              style={{ fontSize: 9, color: isConn ? "#21721f" : THEME.faint }}
+            >
               {isConn ? "● COM3 @ 115200 baud" : "○ Disconnected"}
             </div>
 
             <hr className="div" />
             <div className="sec">Motor control</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-              <button className="btn btn-p" onClick={() => handleCmd("ON")} disabled={!en.on}>ON</button>
-              <button className="btn" onClick={() => handleCmd("OFF")} disabled={!en.off}>OFF</button>
-              <button className="btn btn-d" onClick={() => handleCmd("STOP")} disabled={!en.stop}>STOP</button>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: 6,
+              }}
+            >
+              <button
+                className="btn btn-p"
+                onClick={() => handleCmd("ON")}
+                disabled={!en.on}
+              >
+                ON
+              </button>
+              <button
+                className="btn"
+                onClick={() => handleCmd("OFF")}
+                disabled={!en.off}
+              >
+                OFF
+              </button>
+              <button
+                className="btn btn-d"
+                onClick={() => handleCmd("STOP")}
+                disabled={!en.stop}
+              >
+                STOP
+              </button>
             </div>
 
             {!en.on && getHint(state, "on", isTared) && (
-              <div className="hint" style={{ background: "#fff7df", color: "#8a5a00", border: "1px solid #e6bd5b" }}>
+              <div
+                className="hint"
+                style={{
+                  background: "#fff7df",
+                  color: "#8a5a00",
+                  border: "1px solid #e6bd5b",
+                }}
+              >
                 {getHint(state, "on", isTared)}
               </div>
             )}
             {!en.stop && getHint(state, "stop", isTared) && (
-              <div className="hint" style={{ background: state === S.IDLE ? "#fff0f0" : "#f8fafc", color: state === S.IDLE ? "#a42626" : THEME.muted, border: `1px solid ${state === S.IDLE ? "#f0a1a1" : THEME.border}` }}>
+              <div
+                className="hint"
+                style={{
+                  background: state === S.IDLE ? "#fff0f0" : "#f8fafc",
+                  color: state === S.IDLE ? "#a42626" : THEME.muted,
+                  border: `1px solid ${state === S.IDLE ? "#f0a1a1" : THEME.border}`,
+                }}
+              >
                 {getHint(state, "stop", isTared)}
               </div>
             )}
 
-            <div className="lbl" style={{ marginTop: 4 }}>Throttle % (0–100)</div>
-            <input type="number" min="0" max="100" className="inp" value={speedInput} onChange={(e) => setSpeedInput(e.target.value)} style={{ marginBottom: 5 }} disabled={!en.setSpeed} />
-            <button className="btn btn-p" style={{ width: "100%" }} onClick={() => handleCmd(`SPEED ${speedInput}`)} disabled={!en.setSpeed}>Set speed</button>
+            <div className="lbl" style={{ marginTop: 4 }}>
+              Throttle % (0–100)
+            </div>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              className="inp"
+              value={speedInput}
+              onChange={(e) => setSpeedInput(e.target.value)}
+              style={{ marginBottom: 5 }}
+              disabled={!en.setSpeed}
+            />
+            <button
+              className="btn btn-p"
+              style={{ width: "100%" }}
+              onClick={() => handleCmd(`SPEED ${speedInput}`)}
+              disabled={!en.setSpeed}
+            >
+              Set speed
+            </button>
             {!en.setSpeed && getHint(state, "setSpeed", isTared) && (
-              <div className="hint" style={{ background: "#fff7df", color: "#8a5a00", border: "1px solid #e6bd5b" }}>
+              <div
+                className="hint"
+                style={{
+                  background: "#fff7df",
+                  color: "#8a5a00",
+                  border: "1px solid #e6bd5b",
+                }}
+              >
                 {getHint(state, "setSpeed", isTared)}
               </div>
             )}
             {en.setSpeed && (
               <div style={{ fontSize: 9, color: THEME.muted }}>
-                Cap 70% · {1000 + Math.round((Math.min(parseInt(speedInput) || 0, 70) / 70) * 1000)} µs
+                Cap 70% ·{" "}
+                {1000 +
+                  Math.round(
+                    (Math.min(parseInt(speedInput) || 0, 70) / 70) * 1000,
+                  )}{" "}
+                µs
               </div>
             )}
 
             <hr className="div" />
             <div className="sec">Load cell</div>
-            <button className="btn btn-w" style={{ width: "100%", marginBottom: 5 }} onClick={() => handleCmd("TARE")} disabled={!en.tare}>Tare (zero scale)</button>
+            <button
+              className="btn btn-w"
+              style={{ width: "100%", marginBottom: 5 }}
+              onClick={() => handleCmd("TARE")}
+              disabled={!en.tare}
+            >
+              Tare (zero scale)
+            </button>
             <div className="lbl">Known weight (g)</div>
-            <input type="number" className="inp" value={calInput} onChange={(e) => setCalInput(e.target.value)} style={{ marginBottom: 5 }} disabled={!en.cal} />
-            <button className="btn" style={{ width: "100%" }} onClick={() => handleCmd(`CAL=${calInput}`)} disabled={!en.cal}>Calibrate</button>
-            <div style={{ fontSize: 9, display: "flex", gap: 10, marginTop: 4 }}>
-              <span style={{ color: isTared ? "#21721f" : THEME.faint }}>{isTared ? "✓ Tared" : "○ Tare"}</span>
-              <span style={{ color: isCal ? "#21721f" : THEME.faint }}>{isCal ? "✓ Cal." : "○ Cal."}</span>
+            <input
+              type="number"
+              className="inp"
+              value={calInput}
+              onChange={(e) => setCalInput(e.target.value)}
+              style={{ marginBottom: 5 }}
+              disabled={!en.cal}
+            />
+            <button
+              className="btn"
+              style={{ width: "100%" }}
+              onClick={() => handleCmd(`CAL=${calInput}`)}
+              disabled={!en.cal}
+            >
+              Calibrate
+            </button>
+            <div
+              style={{ fontSize: 9, display: "flex", gap: 10, marginTop: 4 }}
+            >
+              <span style={{ color: isTared ? "#21721f" : THEME.faint }}>
+                {isTared ? "✓ Tared" : "○ Tare"}
+              </span>
+              <span style={{ color: isCal ? "#21721f" : THEME.faint }}>
+                {isCal ? "✓ Cal." : "○ Cal."}
+              </span>
             </div>
 
             <hr className="div" />
             <div className="sec">Data</div>
-            <button className="btn" style={{ width: "100%", marginBottom: 5 }} onClick={() => { dataRef.current = []; setData([]); addLog("Graph buffer cleared.", "info"); }}>Clear graphs</button>
-            <button className="btn" style={{ width: "100%" }} onClick={() => setLogs([])}>Clear console</button>
+            <button
+              className="btn"
+              style={{ width: "100%", marginBottom: 5 }}
+              onClick={() => {
+                dataRef.current = [];
+                setData([]);
+                addLog("Graph buffer cleared.", "info");
+              }}
+            >
+              Clear graphs
+            </button>
+            <button
+              className="btn"
+              style={{ width: "100%" }}
+              onClick={() => setLogs([])}
+            >
+              Clear console
+            </button>
           </div>
 
           {/* ────────── CENTER COLUMN: Telemetry + Motor monitor at bottom ────────── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
-              <Card label="Live current" value={curVal != null ? `${curVal.toFixed(2)} A` : "──"} color="#c53030" />
-              <Card label="Live thrust" value={thrustVal != null ? `${thrustVal.toFixed(1)} g` : "──"} color="#248c24" />
-              <Card label="Data points" value={String(data.length)} color="#0c88d8" />
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4,1fr)",
+                gap: 8,
+              }}
+            >
+              <Card
+                label="Live current"
+                value={curVal != null ? `${curVal.toFixed(2)} A` : "──"}
+                color="#c53030"
+              />
+              <Card
+                label="Live thrust"
+                value={thrustVal != null ? `${thrustVal.toFixed(1)} g` : "──"}
+                color="#248c24"
+              />
+              <Card
+                label="Data points"
+                value={String(data.length)}
+                color="#0c88d8"
+              />
               <Card label="Motor status" value={meta.label} color={meta.text} />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: 8,
+              }}
+            >
               <div className="light-card">
                 <div className="lbl">Connection timer</div>
-                <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: 3, color: "#0c88d8" }}>{fmtTime(connMs)}</div>
+                <div
+                  style={{
+                    fontSize: 17,
+                    fontWeight: 800,
+                    letterSpacing: 3,
+                    color: "#0c88d8",
+                  }}
+                >
+                  {fmtTime(connMs)}
+                </div>
               </div>
               <div className="light-card">
                 <div className="lbl">Active run timer</div>
-                <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: 3, color: state === S.RUN ? "#248c24" : THEME.faint }}>
+                <div
+                  style={{
+                    fontSize: 17,
+                    fontWeight: 800,
+                    letterSpacing: 3,
+                    color: state === S.RUN ? "#248c24" : THEME.faint,
+                  }}
+                >
                   {state === S.RUN ? fmtTime(runMs) : "──:──:──"}
                 </div>
               </div>
-              <div className="light-card" style={{ borderColor: fsWarn ? "#f0a1a1" : THEME.border }}>
-                <div className="lbl" style={{ color: fsWarn ? "#a42626" : undefined }}>Failsafe countdown</div>
+              <div
+                className="light-card"
+                style={{ borderColor: fsWarn ? "#f0a1a1" : THEME.border }}
+              >
+                <div
+                  className="lbl"
+                  style={{ color: fsWarn ? "#a42626" : undefined }}
+                >
+                  Failsafe countdown
+                </div>
                 {failsafeMs !== null ? (
                   <>
-                    <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: 2, color: fsWarn ? "#c53030" : THEME.muted }} className={fsWarn ? "blink" : ""}>
+                    <div
+                      style={{
+                        fontSize: 17,
+                        fontWeight: 800,
+                        letterSpacing: 2,
+                        color: fsWarn ? "#c53030" : THEME.muted,
+                      }}
+                      className={fsWarn ? "blink" : ""}
+                    >
                       {(failsafeMs / 1000).toFixed(1)} s
                     </div>
-                    <div style={{ background: "#e6edf5", borderRadius: 999, height: 6, marginTop: 6 }}>
-                      <div style={{ background: fsWarn ? "#c53030" : "#0c88d8", width: `${(failsafeMs / FAILSAFE_MS) * 100}%`, height: 6, borderRadius: 999, transition: "width .5s linear" }} />
+                    <div
+                      style={{
+                        background: "#e6edf5",
+                        borderRadius: 999,
+                        height: 6,
+                        marginTop: 6,
+                      }}
+                    >
+                      <div
+                        style={{
+                          background: fsWarn ? "#c53030" : "#0c88d8",
+                          width: `${(failsafeMs / FAILSAFE_MS) * 100}%`,
+                          height: 6,
+                          borderRadius: 999,
+                          transition: "width .5s linear",
+                        }}
+                      />
                     </div>
                   </>
                 ) : (
-                  <div style={{ fontSize: 17, color: THEME.faint, letterSpacing: 2 }}>──</div>
+                  <div
+                    style={{
+                      fontSize: 17,
+                      color: THEME.faint,
+                      letterSpacing: 2,
+                    }}
+                  >
+                    ──
+                  </div>
                 )}
               </div>
             </div>
 
             {(state === S.ZERO || state === S.ARM) && (
               <div className="light-card" style={{ borderColor: meta.border }}>
-                <div className="lbl" style={{ marginBottom: 6, color: meta.text }}>
-                  {state === S.ZERO ? "Zero calibration" : "Arm sequence"} — {progPct.toFixed(0)}%
+                <div
+                  className="lbl"
+                  style={{ marginBottom: 6, color: meta.text }}
+                >
+                  {state === S.ZERO ? "Zero calibration" : "Arm sequence"} —{" "}
+                  {progPct.toFixed(0)}%
                   {state === S.ARM && " · commands blocked"}
                 </div>
-                <div style={{ background: "#e6edf5", borderRadius: 999, height: 8, overflow: "hidden" }}>
-                  <div style={{ background: meta.accent, borderRadius: 999, height: 8, width: `${progPct}%`, transition: "width .1s linear" }} />
+                <div
+                  style={{
+                    background: "#e6edf5",
+                    borderRadius: 999,
+                    height: 8,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      background: meta.accent,
+                      borderRadius: 999,
+                      height: 8,
+                      width: `${progPct}%`,
+                      transition: "width .1s linear",
+                    }}
+                  />
                 </div>
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 10,
+              }}
+            >
               {[
                 { label: "Current (A)", key: "current", col: "#c53030" },
                 { label: "Thrust (g)", key: "thrust", col: "#248c24" },
               ].map((ch) => (
-                <div key={ch.key} className="sp" style={{ padding: "12px 6px 8px" }}>
-                  <div style={{ fontSize: 9, color: THEME.muted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 4, paddingLeft: 8 }}>{ch.label}</div>
+                <div
+                  key={ch.key}
+                  className="sp"
+                  style={{ padding: "12px 6px 8px" }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: THEME.muted,
+                      letterSpacing: 0.8,
+                      textTransform: "uppercase",
+                      marginBottom: 4,
+                      paddingLeft: 8,
+                    }}
+                  >
+                    {ch.label}
+                  </div>
                   <ResponsiveContainer width="100%" height={170}>
-                    <LineChart data={data} margin={{ top: 4, right: 6, left: -28, bottom: 0 }}>
-                      <CartesianGrid stroke={THEME.grid} strokeDasharray="3 3" />
-                      <XAxis dataKey="t" stroke={THEME.grid} tick={{ fill: THEME.muted, fontSize: 9, fontFamily: "monospace" }} tickCount={4} />
-                      <YAxis stroke={THEME.grid} tick={{ fill: THEME.muted, fontSize: 9, fontFamily: "monospace" }} width={42} />
+                    <LineChart
+                      data={data}
+                      margin={{ top: 4, right: 6, left: -28, bottom: 0 }}
+                    >
+                      <CartesianGrid
+                        stroke={THEME.grid}
+                        strokeDasharray="3 3"
+                      />
+                      <XAxis
+                        dataKey="t"
+                        stroke={THEME.grid}
+                        tick={{
+                          fill: THEME.muted,
+                          fontSize: 9,
+                          fontFamily: "monospace",
+                        }}
+                        tickCount={4}
+                      />
+                      <YAxis
+                        stroke={THEME.grid}
+                        tick={{
+                          fill: THEME.muted,
+                          fontSize: 9,
+                          fontFamily: "monospace",
+                        }}
+                        width={42}
+                      />
                       <Tooltip
-                        contentStyle={{ background: "#ffffff", border: `1px solid ${THEME.border}`, borderRadius: 10, fontSize: 10, fontFamily: "monospace", boxShadow: THEME.shadow }}
+                        contentStyle={{
+                          background: "#ffffff",
+                          border: `1px solid ${THEME.border}`,
+                          borderRadius: 10,
+                          fontSize: 10,
+                          fontFamily: "monospace",
+                          boxShadow: THEME.shadow,
+                        }}
                         labelStyle={{ color: THEME.muted }}
                         formatter={(v) => [v?.toFixed(3), ch.label]}
                         labelFormatter={(v) => `t = ${v} s`}
                       />
-                      <Line type="monotone" dataKey={ch.key} stroke={ch.col} dot={false} strokeWidth={1.8} isAnimationActive={false} />
+                      <Line
+                        type="monotone"
+                        dataKey={ch.key}
+                        stroke={ch.col}
+                        dot={false}
+                        strokeWidth={1.8}
+                        isAnimationActive={false}
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -967,13 +1458,38 @@ export default function App() {
             </div>
 
             <div className="sp">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <div className="sec" style={{ marginBottom: 0 }}>Console output</div>
-                <div style={{ fontSize: 9, color: THEME.faint }}>session_logs/serial_log.txt</div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 6,
+                }}
+              >
+                <div className="sec" style={{ marginBottom: 0 }}>
+                  Console output
+                </div>
+                <div style={{ fontSize: 9, color: THEME.faint }}>
+                  session_logs/serial_log.txt
+                </div>
               </div>
-              <div ref={logEl} style={{ background: THEME.console, border: `1px solid ${THEME.border}`, borderRadius: 12, padding: "9px 11px", height: 145, overflowY: "auto", fontSize: 10, lineHeight: 1.75 }}>
+              <div
+                ref={logEl}
+                style={{
+                  background: THEME.console,
+                  border: `1px solid ${THEME.border}`,
+                  borderRadius: 12,
+                  padding: "9px 11px",
+                  height: 145,
+                  overflowY: "auto",
+                  fontSize: 10,
+                  lineHeight: 1.75,
+                }}
+              >
                 {logs.length === 0 ? (
-                  <div style={{ color: THEME.faint }}>No output. Click Connect to begin.</div>
+                  <div style={{ color: THEME.faint }}>
+                    No output. Click Connect to begin.
+                  </div>
                 ) : (
                   logs.map((ln, i) => (
                     <div key={i}>
@@ -984,22 +1500,66 @@ export default function App() {
                 )}
               </div>
               <div style={{ display: "flex", gap: 7, marginTop: 8 }}>
-                <input className="inp" style={{ flex: 1 }} placeholder="Type command, e.g. SPEED 50, then press Enter…" value={cmdInput} onChange={(e) => setCmdInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendCmd(); }} />
-                <button className="btn btn-p" style={{ flexShrink: 0 }} onClick={sendCmd}>Send</button>
+                <input
+                  className="inp"
+                  style={{ flex: 1 }}
+                  placeholder="Type command, e.g. SPEED 50, then press Enter…"
+                  value={cmdInput}
+                  onChange={(e) => setCmdInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") sendCmd();
+                  }}
+                />
+                <button
+                  className="btn btn-p"
+                  style={{ flexShrink: 0 }}
+                  onClick={sendCmd}
+                >
+                  Send
+                </button>
               </div>
             </div>
 
             {/* ────────── MOTOR MONITOR — moved to center bottom ────────── */}
             <div className="sp">
               <div className="sec">Motor monitor</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 18,
+                  flexWrap: "wrap",
+                }}
+              >
                 <div style={{ flexShrink: 0 }}>
                   <MotorGauge throttle={throttle} state={state} rpm={rpm} />
                 </div>
-                <div style={{ flex: 1, minWidth: 260, display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
-                  <Card label="Current" value={curVal != null ? `${curVal.toFixed(2)} A` : "──"} color="#c53030" />
-                  <Card label="Thrust" value={thrustVal != null ? `${thrustVal.toFixed(1)} g` : "──"} color="#248c24" />
-                  <Card label="T/I ratio" value={tiRatio != null ? `${tiRatio} g/A` : "──"} color={THEME.text} />
+                <div
+                  style={{
+                    flex: 1,
+                    minWidth: 260,
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                    gap: 8,
+                  }}
+                >
+                  <Card
+                    label="Current"
+                    value={curVal != null ? `${curVal.toFixed(2)} A` : "──"}
+                    color="#c53030"
+                  />
+                  <Card
+                    label="Thrust"
+                    value={
+                      thrustVal != null ? `${thrustVal.toFixed(1)} g` : "──"
+                    }
+                    color="#248c24"
+                  />
+                  <Card
+                    label="T/I ratio"
+                    value={tiRatio != null ? `${tiRatio} g/A` : "──"}
+                    color={THEME.text}
+                  />
                   <Card label="Pulse" value={`${us} µs`} color={meta.accent} />
                 </div>
               </div>
@@ -1008,14 +1568,42 @@ export default function App() {
 
           {/* ────────── RIGHT COLUMN: State machine, fills full height ────────── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div className="sp" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+            <div
+              className="sp"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                flex: 1,
+                minHeight: 0,
+              }}
+            >
               <div className="sec">State machine</div>
               {lastTrans && (
-                <div style={{ background: meta.bg, border: `1px solid ${meta.border}`, color: meta.text, borderRadius: 10, padding: "5px 10px", fontSize: 10, marginBottom: 8, lineHeight: 1.5 }}>
+                <div
+                  style={{
+                    background: meta.bg,
+                    border: `1px solid ${meta.border}`,
+                    color: meta.text,
+                    borderRadius: 10,
+                    padding: "5px 10px",
+                    fontSize: 10,
+                    marginBottom: 8,
+                    lineHeight: 1.5,
+                  }}
+                >
                   ← {lastTrans.reason}
                 </div>
               )}
-              <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 0" }}>
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "8px 0",
+                }}
+              >
                 <StateDiagram state={state} />
               </div>
             </div>
@@ -1044,36 +1632,88 @@ function SummaryPage({ runs, activeRun }) {
       : []),
   ];
   const last = runs[runs.length - 1];
-  const latestEff = last && last.thrustSamples && last.samples
-    ? `${((last.thrustSum / last.thrustSamples) / (last.currentSum / last.samples)).toFixed(2)} g/A`
-    : "─";
+  const latestEff =
+    last && last.thrustSamples && last.samples
+      ? `${(last.thrustSum / last.thrustSamples / (last.currentSum / last.samples)).toFixed(2)} g/A`
+      : "─";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
-        <Card label="Completed runs" value={String(runs.length)} color="#0c88d8" />
-        <Card label="Active run" value={activeRun ? "YES" : "NO"} color={activeRun ? "#b77900" : THEME.faint} />
-        <Card label="Latest run start" value={last ? last.startTime : "─"} color="#248c24" />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4,1fr)",
+          gap: 8,
+        }}
+      >
+        <Card
+          label="Completed runs"
+          value={String(runs.length)}
+          color="#0c88d8"
+        />
+        <Card
+          label="Active run"
+          value={activeRun ? "YES" : "NO"}
+          color={activeRun ? "#b77900" : THEME.faint}
+        />
+        <Card
+          label="Latest run start"
+          value={last ? last.startTime : "─"}
+          color="#248c24"
+        />
         <Card label="Latest avg T/I" value={latestEff} color={THEME.text} />
       </div>
 
       {activeRun && (
         <div className="sp">
           <div className="sec">Active run detail</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4,1fr)",
+              gap: 8,
+            }}
+          >
             {[
               { l: "Run #", v: String(activeRun.id) },
               { l: "Start", v: activeRun.startTime },
               { l: "Command", v: activeRun.startCmd },
-              { l: "Duration (s)", v: (+activeRun.duration).toFixed(2), blink: true },
+              {
+                l: "Duration (s)",
+                v: (+activeRun.duration).toFixed(2),
+                blink: true,
+              },
               { l: "Samples", v: String(activeRun.samples) },
-              { l: "Avg I (A)", v: activeRun.samples ? (activeRun.currentSum / activeRun.samples).toFixed(3) : "─" },
-              { l: "Avg T (g)", v: activeRun.thrustSamples ? (activeRun.thrustSum / activeRun.thrustSamples).toFixed(2) : "─" },
-              { l: "Avg T/I", v: activeRun.samples && activeRun.thrustSamples ? ((activeRun.thrustSum / activeRun.thrustSamples) / (activeRun.currentSum / activeRun.samples)).toFixed(2) : "─" },
+              {
+                l: "Avg I (A)",
+                v: activeRun.samples
+                  ? (activeRun.currentSum / activeRun.samples).toFixed(3)
+                  : "─",
+              },
+              {
+                l: "Avg T (g)",
+                v: activeRun.thrustSamples
+                  ? (activeRun.thrustSum / activeRun.thrustSamples).toFixed(2)
+                  : "─",
+              },
+              {
+                l: "Avg T/I",
+                v:
+                  activeRun.samples && activeRun.thrustSamples
+                    ? (
+                        activeRun.thrustSum /
+                        activeRun.thrustSamples /
+                        (activeRun.currentSum / activeRun.samples)
+                      ).toFixed(2)
+                    : "─",
+              },
             ].map((it) => (
               <div key={it.l} className="light-card">
                 <div className="lbl">{it.l}</div>
-                <div className={it.blink ? "blink" : ""} style={{ fontSize: 13, fontWeight: 800, color: "#b77900" }}>
+                <div
+                  className={it.blink ? "blink" : ""}
+                  style={{ fontSize: 13, fontWeight: 800, color: "#b77900" }}
+                >
                   {it.v}
                 </div>
               </div>
@@ -1083,27 +1723,74 @@ function SummaryPage({ runs, activeRun }) {
       )}
 
       <div className="sp" style={{ overflowX: "auto" }}>
-        <div className="sec">Run table <span style={{ fontWeight: 400, color: THEME.faint, marginLeft: 8 }}>(metrics only from RUN state)</span></div>
+        <div className="sec">
+          Run table{" "}
+          <span style={{ fontWeight: 400, color: THEME.faint, marginLeft: 8 }}>
+            (metrics only from RUN state)
+          </span>
+        </div>
         {all.length === 0 ? (
-          <div style={{ color: THEME.faint, textAlign: "center", padding: "28px 0", fontSize: 12 }}>
+          <div
+            style={{
+              color: THEME.faint,
+              textAlign: "center",
+              padding: "28px 0",
+              fontSize: 12,
+            }}
+          >
             No run data yet. Connect → ON → SPEED &gt; 0 to begin.
           </div>
         ) : (
           <table className="rtbl">
             <thead>
-              <tr>{["#", "Status", "Start", "Command", "End", "End reason", "Dur (s)", "Samples", "Avg I (A)", "Avg T (g)", "Avg T/I (g/A)"].map((h) => <th key={h}>{h}</th>)}</tr>
+              <tr>
+                {[
+                  "#",
+                  "Status",
+                  "Start",
+                  "Command",
+                  "End",
+                  "End reason",
+                  "Dur (s)",
+                  "Samples",
+                  "Avg I (A)",
+                  "Avg T (g)",
+                  "Avg T/I (g/A)",
+                ].map((h) => (
+                  <th key={h}>{h}</th>
+                ))}
+              </tr>
             </thead>
             <tbody>
               {all.map((r, i) => {
-                const avgI = r.samples ? (r.currentSum / r.samples).toFixed(3) : "─";
-                const avgT = r.thrustSamples ? (r.thrustSum / r.thrustSamples).toFixed(2) : "─";
-                const avgTI = r.samples && r.thrustSamples ? ((r.thrustSum / r.thrustSamples) / (r.currentSum / r.samples)).toFixed(2) : "─";
+                const avgI = r.samples
+                  ? (r.currentSum / r.samples).toFixed(3)
+                  : "─";
+                const avgT = r.thrustSamples
+                  ? (r.thrustSum / r.thrustSamples).toFixed(2)
+                  : "─";
+                const avgTI =
+                  r.samples && r.thrustSamples
+                    ? (
+                        r.thrustSum /
+                        r.thrustSamples /
+                        (r.currentSum / r.samples)
+                      ).toFixed(2)
+                    : "─";
                 const dur = r.duration != null ? (+r.duration).toFixed(2) : "─";
                 const isAct = r.status === "ACTIVE";
                 return (
                   <tr key={i}>
                     <td>{r.id}</td>
-                    <td>{isAct ? <span className="blink" style={{ color: "#b77900" }}>● ACTIVE</span> : <span style={{ color: "#248c24" }}>Completed</span>}</td>
+                    <td>
+                      {isAct ? (
+                        <span className="blink" style={{ color: "#b77900" }}>
+                          ● ACTIVE
+                        </span>
+                      ) : (
+                        <span style={{ color: "#248c24" }}>Completed</span>
+                      )}
+                    </td>
                     <td>{r.startTime}</td>
                     <td>{r.startCmd}</td>
                     <td>{r.endTime ?? "─"}</td>
